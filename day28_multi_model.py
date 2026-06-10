@@ -1,5 +1,6 @@
 # ==========================
-# 多模型综合AI平台（DeepSeek适配+自检版）
+# 多模型综合AI平台（最终优化版）
+# 第30天：界面美化+功能优化+使用引导
 # ==========================
 import streamlit as st
 from openai import OpenAI
@@ -7,36 +8,48 @@ import faiss
 import numpy as np
 import os
 
-# 页面全局配置
-st.set_page_config(page_title="多模型AI工作台", layout="wide")
-st.title("🤖 多模型综合AI应用平台")
+# 全局页面配置 + 基础美化
+st.set_page_config(
+    page_title="AI综合工作台",
+    layout="wide",
+    page_icon="🤖"
+)
 
-# ========= 安全读取 API Key（适配本地/云端）=========
+# 自定义页面样式
+st.markdown("""
+<style>
+.main {background-color: #f7f8fa;}
+.title {color: #1f2937; text-align: center; font-size: 28px; font-weight: bold;}
+.desc {color: #4b5563; text-align: center; margin-bottom: 20px;}
+</style>
+""", unsafe_allow_html=True)
+
+# 标题与简介
+st.markdown('<p class="title">🤖 多模型综合AI应用平台</p>', unsafe_allow_html=True)
+st.markdown('<p class="desc">智能聊天 | 文档问答 | 文案生成 三合一工具</p>', unsafe_allow_html=True)
+st.divider()
+
+# ========= 安全读取 API Key =========
 def get_api_key():
     try:
-        # 优先读取 Streamlit Secrets（云端）
         if "OPENAI_API_KEY" in st.secrets:
             return st.secrets["OPENAI_API_KEY"]
-        # 其次读取本地环境变量
         return os.getenv("OPENAI_API_KEY")
     except:
         return None
 
 api_key = get_api_key()
-
-# ✅ 关键修改：指定 DeepSeek 的接口地址
 client = None
 if api_key:
     client = OpenAI(
         api_key=api_key,
         base_url="https://api.deepseek.com/v1"
     )
-# ==================================================
 
-# 可选模型（DeepSeek 官方模型名称）
+# 模型列表
 MODEL_LIST = ["deepseek-chat", "deepseek-coder"]
 
-# 会话缓存初始化
+# 会话初始化
 if "knowledge_chunks" not in st.session_state:
     st.session_state.knowledge_chunks = None
 if "faiss_index" not in st.session_state:
@@ -44,40 +57,50 @@ if "faiss_index" not in st.session_state:
 if "chat_messages" not in st.session_state:
     st.session_state.chat_messages = []
 
-# ---------------------- 一键自检功能 ----------------------
-st.sidebar.divider()
-st.sidebar.subheader("🔍 系统自检")
-if st.sidebar.button("点击自检 DeepSeek 接口"):
-    if not api_key:
-        st.sidebar.error("❌ 未配置 API Key，请在 Secrets 中添加 OPENAI_API_KEY")
-    elif not client:
-        st.sidebar.error("❌ 客户端初始化失败，请检查 API Key 格式")
-    else:
-        try:
-            # 发送一个测试请求
-            test_resp = client.chat.completions.create(
-                model="deepseek-chat",
-                messages=[{"role": "user", "content": "只回复我：OK"}],
-                temperature=0,
-                max_tokens=5
-            )
-            if test_resp.choices[0].message.content.strip() == "OK":
-                st.sidebar.success("✅ DeepSeek 接口连接正常！")
-                st.sidebar.info(f"当前接口地址：{client.base_url}")
-                st.sidebar.info(f"API Key 前5位：{api_key[:5]}...")
-            else:
-                st.sidebar.warning("⚠️ 接口有响应，但返回异常，请检查模型配置")
-        except Exception as e:
-            st.sidebar.error(f"❌ 连接失败：{str(e)[:100]}...")
-
-# 侧边栏
+# ---------------------- 侧边栏：自检 + 功能区 + 清空按钮 ----------------------
 with st.sidebar:
+    st.subheader("🔍 系统自检")
+    if st.button("检测接口连通性"):
+        if not api_key:
+            st.error("❌ 未配置 API Key")
+        elif not client:
+            st.error("❌ 客户端初始化失败")
+        else:
+            try:
+                test_resp = client.chat.completions.create(
+                    model="deepseek-chat",
+                    messages=[{"role": "user", "content": "只回复OK"}],
+                    temperature=0,
+                    max_tokens=5
+                )
+                if test_resp.choices[0].message.content.strip() == "OK":
+                    st.success("✅ DeepSeek 接口正常")
+                    st.info(f"接口地址：{client.base_url}")
+            except Exception as e:
+                st.error(f"❌ 连接失败：{str(e)[:80]}")
+
     st.divider()
-    st.subheader("功能菜单")
-    menu = st.radio("选择功能", ["AI智能聊天", "文档知识库问答", "自媒体文案生成"])
+    st.subheader("🧭 功能菜单")
+    menu = st.radio("请选择功能", ["AI智能聊天", "文档知识库问答", "自媒体文案生成"])
+
     st.divider()
-    st.subheader("模型选择")
-    select_model = st.selectbox("切换模型", MODEL_LIST)
+    st.subheader("⚙️ 模型设置")
+    select_model = st.selectbox("切换大模型", MODEL_LIST)
+
+    st.divider()
+    # 新增：清空聊天记录按钮
+    if st.button("🧹 清空聊天记录"):
+        st.session_state.chat_messages = []
+        st.success("✅ 聊天记录已清空")
+
+    st.divider()
+    # 新增：使用说明
+    st.info("""
+    💡 使用小贴士
+    1. 聊天：直接输入对话即可
+    2. 文档问答：仅支持 TXT 文件
+    3. 文案生成：填写主题+风格一键产出
+    """)
 
 # ---------------------- 公共工具函数 ----------------------
 def split_text(text, chunk_size=500, overlap=50):
@@ -90,7 +113,6 @@ def split_text(text, chunk_size=500, overlap=50):
     return chunks
 
 def get_embedding(text):
-    # 使用 DeepSeek 的嵌入模型
     resp = client.embeddings.create(
         input=text,
         model="deepseek-embedding"
@@ -106,31 +128,31 @@ def build_vector_db(file_content):
 
 def search_context(query, chunks, index, top_k=3):
     query_embedding = get_embedding(query)
-    distances, indices = index.search(np.array([query_embedding], dtype=np.float32), top_k)
+    _, indices = index.search(np.array([query_embedding], dtype=np.float32), top_k)
     return "\n---\n".join([chunks[i] for i in indices[0]])
 
 # ====================== 1. AI智能聊天 ======================
 if menu == "AI智能聊天":
     st.subheader("💬 在线对话助手")
-    # 显示历史消息
+    if not client:
+        st.error("❌ 接口异常，请先在侧边栏完成自检！")
+        st.stop()
+
+    # 展示历史消息
     for msg in st.session_state.chat_messages:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-    # 输入框
-    user_input = st.chat_input("输入你的问题...")
+    user_input = st.chat_input("在这里输入你的问题...")
     if user_input:
-        if not client:
-            st.error("❌ API Key 未配置或接口连接失败，请先在侧边栏完成自检")
-            st.stop()
         st.session_state.chat_messages.append({"role": "user", "content": user_input})
         with st.chat_message("user"):
             st.markdown(user_input)
 
-        with st.chat_message("assistant"), st.spinner("思考中..."):
+        with st.chat_message("assistant"), st.spinner("AI思考中..."):
             resp = client.chat.completions.create(
                 model=select_model,
-                messages=[{"role": "user", "content": user_input}],
+                messages=st.session_state.chat_messages,
                 temperature=0.3
             )
             reply = resp.choices[0].message.content
@@ -141,57 +163,64 @@ if menu == "AI智能聊天":
 elif menu == "文档知识库问答":
     st.subheader("📚 私有文档问答系统")
     if not client:
-        st.error("❌ API Key 未配置或接口连接失败，请先在侧边栏完成自检")
+        st.error("❌ 接口异常，请先在侧边栏完成自检！")
         st.stop()
-    upload_file = st.file_uploader("上传TXT文档", type="txt")
+
+    # 限制上传文件大小：5MB
+    upload_file = st.file_uploader("上传 TXT 文档（最大 5MB）", type="txt")
+    if upload_file and upload_file.size > 5 * 1024 * 1024:
+        st.error("⚠️ 文件过大，请上传 5MB 以内的文档！")
+        st.stop()
 
     if upload_file:
         content = upload_file.read().decode("utf-8")
-        with st.spinner("构建知识库..."):
+        with st.spinner("解析文档并构建知识库..."):
             chunks, index = build_vector_db(content)
             st.session_state.knowledge_chunks = chunks
             st.session_state.faiss_index = index
-        st.success("✅ 文档加载完成，可开始提问")
+        st.success("✅ 文档加载完成，可以开始提问！")
 
     if st.session_state.knowledge_chunks:
-        question = st.text_input("请输入你的问题：")
+        question = st.text_input("请针对文档内容提问：")
         if question:
             with st.spinner("检索答案中..."):
                 context = search_context(question, st.session_state.knowledge_chunks, st.session_state.faiss_index)
-                prompt = f"""根据以下参考信息回答问题，如信息不足请说明。
-参考信息：{context}
-问题：{question}"""
+                prompt = f"""严格根据参考资料回答问题，无相关内容则如实说明。
+参考资料：{context}
+用户问题：{question}"""
                 resp = client.chat.completions.create(
                     model=select_model,
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.1
                 )
-                answer = resp.choices[0].message.content
-                st.markdown("### 回答")
-                st.write(answer)
+                st.markdown("### 📝 回答")
+                st.write(resp.choices[0].message.content)
     else:
-        st.info("请先上传TXT文档")
+        st.info("请先上传 TXT 格式文档")
 
 # ====================== 3. 自媒体文案生成 ======================
 elif menu == "自媒体文案生成":
-    st.subheader("✍️ 一键生成文案工具")
+    st.subheader("✍️ 一键文案生成工具")
     if not client:
-        st.error("❌ API Key 未配置或接口连接失败，请先在侧边栏完成自检")
+        st.error("❌ 接口异常，请先在侧边栏完成自检！")
         st.stop()
-    theme = st.text_input("文案主题（如：雪山、咖啡、旅行）")
-    style = st.selectbox("选择风格", ["走心治愈", "活泼有趣", "文艺清新", "简约高级", "搞笑段子"])
 
-    if st.button("一键生成"):
+    theme = st.text_input("请输入文案主题")
+    style = st.selectbox(
+        "选择文案风格",
+        ["走心治愈", "活泼有趣", "文艺清新", "简约高级", "搞笑段子"]
+    )
+
+    if st.button("🚀 立即生成"):
         if not theme:
-            st.warning("请输入文案主题")
+            st.warning("⚠️ 请先填写文案主题！")
         else:
-            with st.spinner("生成中..."):
-                prompt = f"""请根据主题「{theme}」，写一篇{style}风格的自媒体文案，结构包含标题、正文、结尾，适合朋友圈/小红书发布。"""
+            with st.spinner("文案创作中..."):
+                prompt = f"""围绕主题「{theme}」，撰写一篇{style}风格的自媒体文案，包含标题、正文、结尾互动。"""
                 resp = client.chat.completions.create(
                     model=select_model,
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.4
                 )
-                result = resp.choices[0].message.content
-                st.markdown("### 生成结果")
-                st.write(result)
+                st.markdown("### ✨ 生成结果")
+                st.write(resp.choices[0].message.content)
