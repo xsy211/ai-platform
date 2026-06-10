@@ -1,5 +1,5 @@
 # ==========================
-# 多模型综合AI平台（最终优化版）
+# 小xu同学的AI应用平台（最终优化版）
 # 第30天：界面美化+功能优化+使用引导
 # ==========================
 import streamlit as st
@@ -10,7 +10,7 @@ import os
 
 # 全局页面配置 + 基础美化
 st.set_page_config(
-    page_title="AI综合工作台",
+    page_title="小xu同学的AI应用平台",
     layout="wide",
     page_icon="🤖"
 )
@@ -25,7 +25,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # 标题与简介
-st.markdown('<p class="title">🤖 多模型综合AI应用平台</p>', unsafe_allow_html=True)
+st.markdown('<p class="title">🤖 小xu同学的AI应用平台</p>', unsafe_allow_html=True)
 st.markdown('<p class="desc">智能聊天 | 文档问答 | 文案生成 三合一工具</p>', unsafe_allow_html=True)
 st.divider()
 
