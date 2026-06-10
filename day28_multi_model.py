@@ -1,5 +1,5 @@
 # ==========================
-# 多模型综合AI平台（DeepSeek适配版）
+# 多模型综合AI平台（DeepSeek适配+自检版）
 # ==========================
 import streamlit as st
 from openai import OpenAI
@@ -20,16 +20,17 @@ def get_api_key():
         # 其次读取本地环境变量
         return os.getenv("OPENAI_API_KEY")
     except:
-        st.error("❌ 未配置 OPENAI_API_KEY，请在 Secrets 或环境变量中配置")
-        st.stop()
+        return None
 
 api_key = get_api_key()
 
 # ✅ 关键修改：指定 DeepSeek 的接口地址
-client = OpenAI(
-    api_key=api_key,
-    base_url="https://api.deepseek.com/v1"
-)
+client = None
+if api_key:
+    client = OpenAI(
+        api_key=api_key,
+        base_url="https://api.deepseek.com/v1"
+    )
 # ==================================================
 
 # 可选模型（DeepSeek 官方模型名称）
@@ -43,8 +44,35 @@ if "faiss_index" not in st.session_state:
 if "chat_messages" not in st.session_state:
     st.session_state.chat_messages = []
 
+# ---------------------- 一键自检功能 ----------------------
+st.sidebar.divider()
+st.sidebar.subheader("🔍 系统自检")
+if st.sidebar.button("点击自检 DeepSeek 接口"):
+    if not api_key:
+        st.sidebar.error("❌ 未配置 API Key，请在 Secrets 中添加 OPENAI_API_KEY")
+    elif not client:
+        st.sidebar.error("❌ 客户端初始化失败，请检查 API Key 格式")
+    else:
+        try:
+            # 发送一个测试请求
+            test_resp = client.chat.completions.create(
+                model="deepseek-chat",
+                messages=[{"role": "user", "content": "只回复我：OK"}],
+                temperature=0,
+                max_tokens=5
+            )
+            if test_resp.choices[0].message.content.strip() == "OK":
+                st.sidebar.success("✅ DeepSeek 接口连接正常！")
+                st.sidebar.info(f"当前接口地址：{client.base_url}")
+                st.sidebar.info(f"API Key 前5位：{api_key[:5]}...")
+            else:
+                st.sidebar.warning("⚠️ 接口有响应，但返回异常，请检查模型配置")
+        except Exception as e:
+            st.sidebar.error(f"❌ 连接失败：{str(e)[:100]}...")
+
 # 侧边栏
 with st.sidebar:
+    st.divider()
     st.subheader("功能菜单")
     menu = st.radio("选择功能", ["AI智能聊天", "文档知识库问答", "自媒体文案生成"])
     st.divider()
@@ -92,6 +120,9 @@ if menu == "AI智能聊天":
     # 输入框
     user_input = st.chat_input("输入你的问题...")
     if user_input:
+        if not client:
+            st.error("❌ API Key 未配置或接口连接失败，请先在侧边栏完成自检")
+            st.stop()
         st.session_state.chat_messages.append({"role": "user", "content": user_input})
         with st.chat_message("user"):
             st.markdown(user_input)
@@ -109,6 +140,9 @@ if menu == "AI智能聊天":
 # ====================== 2. 文档知识库问答 ======================
 elif menu == "文档知识库问答":
     st.subheader("📚 私有文档问答系统")
+    if not client:
+        st.error("❌ API Key 未配置或接口连接失败，请先在侧边栏完成自检")
+        st.stop()
     upload_file = st.file_uploader("上传TXT文档", type="txt")
 
     if upload_file:
@@ -141,6 +175,9 @@ elif menu == "文档知识库问答":
 # ====================== 3. 自媒体文案生成 ======================
 elif menu == "自媒体文案生成":
     st.subheader("✍️ 一键生成文案工具")
+    if not client:
+        st.error("❌ API Key 未配置或接口连接失败，请先在侧边栏完成自检")
+        st.stop()
     theme = st.text_input("文案主题（如：雪山、咖啡、旅行）")
     style = st.selectbox("选择风格", ["走心治愈", "活泼有趣", "文艺清新", "简约高级", "搞笑段子"])
 
